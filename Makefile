@@ -71,8 +71,10 @@ ifeq ($(UNAME_S),Darwin)
     CXX := clang++
     CC := clang
     # Use IOKit HID (same as Python SDK)
-    PLATFORM_DEFS := -DMACOSX -DBOOTLOADER_HOST
+    MACOS_MIN_VERSION := -mmacosx-version-min=11.0
+    PLATFORM_DEFS := -DMACOSX -DBOOTLOADER_HOST $(MACOS_MIN_VERSION)
     PLATFORM_LIBS := -framework IOKit -framework CoreFoundation -lpthread
+    PLATFORM_LDFLAGS := $(MACOS_MIN_VERSION)
     BLFWK_OBJS += $(BLFWK_SRC)/hid-mac.o
     TARGET_EXT :=
 endif
