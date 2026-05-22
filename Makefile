@@ -5,7 +5,7 @@
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
 
 # Tool configuration
-TARGET := nt-flash
+TARGET := ntx-flash
 
 # Source directories
 BLFWK_DIR := lib/nxp_blhost_sdphost

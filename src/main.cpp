@@ -1,10 +1,10 @@
 /*
- * NT Flash Tool - Unified firmware flasher for disting NT
+ * NTX Flash Tool - Unified firmware flasher for NTX-8CV
  *
  * Copyright (c) 2024
  *
  * This tool wraps the NXP BLFWK library to provide a simple command-line
- * interface for flashing disting NT firmware.
+ * interface for flashing NTX-8CV firmware.
  */
 
 #include <cstdio>
@@ -49,22 +49,22 @@ using namespace blfwk;
 //------------------------------------------------------------------------------
 
 const char* VERSION = "0.1.0";
-const char* TOOL_NAME = "nt-flash";
+const char* TOOL_NAME = "ntx-flash";
 
-// USB IDs for disting NT
+// USB IDs for NTX-8CV
 const uint16_t SDP_VID = 0x1FC9;    // NXP ROM bootloader
-const uint16_t SDP_PID = 0x0135;    // i.MX RT in SDP mode
+const uint16_t SDP_PID = 0x0145;    // i.MX RT in SDP mode
 const uint16_t BL_VID = 0x15A2;     // NXP flashloader
 const uint16_t BL_PID = 0x0073;     // Flashloader running
 
-// Memory addresses for i.MX RT1060
-const uint32_t FLASHLOADER_ADDR = 0x20001C00;  // RAM address for flashloader
+// Memory addresses for i.MX RT1010
+const uint32_t FLASHLOADER_ADDR = 0x20205800;  // RAM address for flashloader
 const uint32_t FLASH_BASE = 0x60000000;        // External flash base
 const uint32_t FIRMWARE_ADDR = 0x60001000;     // Firmware write address
 const uint32_t CONFIG_ADDR = 0x2000;           // Configuration memory
 
 // FlexSPI configuration values
-const uint32_t FLEXSPI_NOR_CONFIG = 0xC0000008;
+const uint32_t FLEXSPI_NOR_CONFIG = 0xC0000007;
 const uint32_t FCB_CONFIG = 0xF000000F;
 const uint32_t MEMORY_ID_FLEXSPI_NOR = 9;
 
@@ -300,8 +300,8 @@ bool parseManifest(const std::vector<uint8_t>& jsonData, std::string& firmwarePa
     }
 
     cJSON* processor = cJSON_GetObjectItem(root, "processor");
-    if (processor && processor->valuestring && strcmp(processor->valuestring, "MIMXRT1060") != 0) {
-        logError("Unsupported processor: %s (expected MIMXRT1060)", processor->valuestring);
+    if (processor && processor->valuestring && strcmp(processor->valuestring, "MIMXRT1010") != 0) {
+        logError("Unsupported processor: %s (expected MIMXRT1010)", processor->valuestring);
         cJSON_Delete(root);
         return false;
     }
@@ -344,7 +344,7 @@ FirmwarePackage* loadFirmwarePackage(const char* zipPath) {
     }
 
     // Extract flashloader
-    if (!extractFileFromZip(zipData, "bootable_images/unsigned_MIMXRT1060_flashloader.bin",
+    if (!extractFileFromZip(zipData, "bootable_images/unsigned_MIMXRT1010_flashloader.bin",
                             pkg->flashloader)) {
         delete pkg;
         return nullptr;
@@ -770,8 +770,8 @@ bool flashFirmware(FirmwarePackage* pkg, bool skipSdp = false) {
         return false;
     }
 
-    logInfo("=== Starting disting NT flash ===");
-    machineStatus("START", 0, "Starting disting NT flash");
+    logInfo("=== Starting NTX-8CV flash ===");
+    machineStatus("START", 0, "Starting NTX-8CV flash");
 
     // Phase 1: SDP - Load flashloader (skip if already in flashloader mode)
     if (!skipSdp) {
@@ -790,7 +790,7 @@ bool flashFirmware(FirmwarePackage* pkg, bool skipSdp = false) {
                 skipSdp = true;
             } else {
                 logError("Device not found in SDP mode or flashloader mode");
-                logInfo("Make sure disting NT is in bootloader mode:");
+                logInfo("Make sure NTX-8CV is in bootloader mode:");
                 logInfo("  Menu > Misc > Enter bootloader mode...");
                 return false;
             }
@@ -889,7 +889,7 @@ bool flashFirmware(FirmwarePackage* pkg, bool skipSdp = false) {
 //------------------------------------------------------------------------------
 
 void printUsage() {
-    printf("NT Flash Tool v%s - Disting NT Firmware Flasher\n\n", VERSION);
+    printf("NTX Flash Tool v%s - NTX-8CV Firmware Flasher\n\n", VERSION);
     printf("Usage:\n");
     printf("  %s <firmware.zip>              Flash from local ZIP file\n", TOOL_NAME);
     printf("  %s --version <X.Y.Z>           Download and flash specific version\n", TOOL_NAME);
@@ -903,12 +903,12 @@ void printUsage() {
     printf("  -m, --machine                  Machine-readable output for tool integration\n");
     printf("  -h, --help                     Show this help\n");
     printf("\n");
-    printf("Before flashing, put disting NT in bootloader mode:\n");
-    printf("  Menu > Misc > Enter bootloader mode...\n");
+    printf("Before flashing, put NTX-8CV in bootloader mode:\n");
+    printf("  from the web tool (MIDI SysEx) or with the jumper\n");
 }
 
 void printVersionInfo() {
-    printf("NT Flash Tool v%s\n", VERSION);
+    printf("NTX Flash Tool v%s\n", VERSION);
 }
 
 int main(int argc, char* argv[]) {
