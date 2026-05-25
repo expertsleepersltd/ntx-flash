@@ -2,7 +2,7 @@
 *.o
 *.obj
 *.exe
-nt-flash
+ntx-flash
 blhost
 sdphost
 

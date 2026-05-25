@@ -840,10 +840,11 @@ bool flashFirmware(FirmwarePackage* pkg, bool skipSdp = false) {
     machineStatus("CONFIGURE", 50, "Configuring flash memory");
 
     // Configure FlexSPI NOR
-    logVerbose("Configuring FlexSPI NOR...");
+    logVerbose("Preparing to configure FlexSPI NOR...");
     if (!bl.fillMemory(CONFIG_ADDR, 4, FLEXSPI_NOR_CONFIG)) {
         return false;
     }
+    logVerbose("Configuring FlexSPI NOR...");
     if (!bl.configureMemory(MEMORY_ID_FLEXSPI_NOR, CONFIG_ADDR)) {
         return false;
     }
