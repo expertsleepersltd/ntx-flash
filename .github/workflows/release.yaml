@@ -22,18 +22,15 @@ jobs:
         include:
           - os: macos-latest
             name: macos
-            artifact: nt-flash
-            archive_cmd: zip -r
-            archive_ext: zip
+            artifact: ntx-flash
+            archive_ext: pkg
           - os: ubuntu-latest
             name: linux
-            artifact: nt-flash
-            archive_cmd: tar -czvf
+            artifact: ntx-flash
             archive_ext: tar.gz
           - os: windows-latest
             name: windows
-            artifact: nt-flash.exe
-            archive_cmd: zip -r
+            artifact: ntx-flash.exe
             archive_ext: zip
 
     runs-on: ${{ matrix.os }}
@@ -55,10 +52,10 @@ jobs:
               echo "Error: No tags found"
               exit 1
             fi
-            echo "version=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "version=$LATEST_TAG" >> "$GITHUB_OUTPUT"
             git checkout "$LATEST_TAG"
           else
-            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install dependencies (Linux)
@@ -89,7 +86,83 @@ jobs:
           make clean || true
           make universal
           echo "Binary architecture info:"
-          file nt-flash
+          file ntx-flash
+
+      - name: Import macOS Developer ID certificates
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          MACOS_CERTIFICATES_P12_BASE64: ${{ secrets.MACOS_CERTIFICATES_P12_BASE64 }}
+          MACOS_CERTIFICATES_P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATES_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${MACOS_CERTIFICATES_P12_BASE64:?MACOS_CERTIFICATES_P12_BASE64 is required}"
+          : "${MACOS_CERTIFICATES_P12_PASSWORD:?MACOS_CERTIFICATES_P12_PASSWORD is required}"
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id-certificates.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/ntx-flash-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+
+          printf '%s' "$MACOS_CERTIFICATES_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$MACOS_CERTIFICATES_P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/pkgbuild \
+            -T /usr/bin/productsign
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          APPLICATION_IDENTITY="$(
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" |
+              sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' |
+              head -n 1
+          )"
+          INSTALLER_IDENTITY="$(
+            security find-identity -v "$KEYCHAIN_PATH" |
+              sed -n 's/.*"\(Developer ID Installer:.*\)"/\1/p' |
+              head -n 1
+          )"
+
+          if [ -z "$APPLICATION_IDENTITY" ]; then
+            echo "Developer ID Application identity not found in certificate archive"
+            exit 1
+          fi
+          if [ -z "$INSTALLER_IDENTITY" ]; then
+            echo "Developer ID Installer identity not found in certificate archive"
+            exit 1
+          fi
+
+          echo "Using application identity: $APPLICATION_IDENTITY"
+          echo "Using installer identity: $INSTALLER_IDENTITY"
+          {
+            echo "MACOS_KEYCHAIN_PATH=$KEYCHAIN_PATH"
+            echo "MACOS_APPLICATION_IDENTITY=$APPLICATION_IDENTITY"
+            echo "MACOS_INSTALLER_IDENTITY=$INSTALLER_IDENTITY"
+          } >> "$GITHUB_ENV"
+
+      - name: Sign macOS executable
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          codesign \
+            --force \
+            --options runtime \
+            --timestamp \
+            --keychain "$MACOS_KEYCHAIN_PATH" \
+            --sign "$MACOS_APPLICATION_IDENTITY" \
+            ntx-flash
+          codesign --verify --strict --verbose=2 ntx-flash
+          codesign --display --verbose=4 ntx-flash
 
       - name: Build (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -104,30 +177,109 @@ jobs:
           mingw32-make clean || true
           mingw32-make
 
-      - name: Prepare release package (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Build signed macOS installer package
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.get_version.outputs.version }}"
+          PACKAGE_VERSION="${VERSION#v}"
+          PACKAGE_PATH="$PWD/release/ntx-flash-${VERSION}-macos.pkg"
+          PAYLOAD_ROOT="$RUNNER_TEMP/ntx-flash-package-root"
+
+          rm -rf "$PAYLOAD_ROOT"
+          mkdir -p "$PAYLOAD_ROOT/usr/local/bin" release
+          install -m 0755 ntx-flash "$PAYLOAD_ROOT/usr/local/bin/ntx-flash"
+
+          pkgbuild \
+            --root "$PAYLOAD_ROOT" \
+            --identifier "com.expert-sleepers.ntx-flash" \
+            --version "$PACKAGE_VERSION" \
+            --install-location / \
+            --ownership recommended \
+            --sign "$MACOS_INSTALLER_IDENTITY" \
+            --keychain "$MACOS_KEYCHAIN_PATH" \
+            --timestamp \
+            "$PACKAGE_PATH"
+
+          pkgutil --check-signature "$PACKAGE_PATH"
+          echo "MACOS_PACKAGE_PATH=$PACKAGE_PATH" >> "$GITHUB_ENV"
+
+      - name: Notarize and staple macOS installer package
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          : "${APP_STORE_CONNECT_API_KEY_P8_BASE64:?APP_STORE_CONNECT_API_KEY_P8_BASE64 is required}"
+          : "${APP_STORE_CONNECT_API_KEY_ID:?APP_STORE_CONNECT_API_KEY_ID is required}"
+          : "${APP_STORE_CONNECT_API_ISSUER_ID:?APP_STORE_CONNECT_API_ISSUER_ID is required}"
+
+          API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          NOTARY_RESULT="$RUNNER_TEMP/notary-result.json"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8_BASE64" | base64 --decode > "$API_KEY_PATH"
+          chmod 600 "$API_KEY_PATH"
+
+          NOTARY_AUTH=(
+            --key "$API_KEY_PATH"
+            --key-id "$APP_STORE_CONNECT_API_KEY_ID"
+            --issuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+          )
+
+          set +e
+          xcrun notarytool submit "$MACOS_PACKAGE_PATH" \
+            "${NOTARY_AUTH[@]}" \
+            --wait \
+            --timeout 30m \
+            --output-format json > "$NOTARY_RESULT"
+          NOTARY_EXIT=$?
+          set -e
+
+          cat "$NOTARY_RESULT"
+          SUBMISSION_ID="$(
+            python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("id", ""))' \
+              "$NOTARY_RESULT" 2>/dev/null || true
+          )"
+          STATUS="$(
+            python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("status", ""))' \
+              "$NOTARY_RESULT" 2>/dev/null || true
+          )"
+
+          if [ "$NOTARY_EXIT" -ne 0 ] || [ "$STATUS" != "Accepted" ]; then
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" "${NOTARY_AUTH[@]}" || true
+            fi
+            echo "Notarization failed with status: ${STATUS:-unknown}"
+            exit 1
+          fi
+
+          xcrun stapler staple -v "$MACOS_PACKAGE_PATH"
+          xcrun stapler validate -v "$MACOS_PACKAGE_PATH"
+          spctl --assess --type install --verbose=4 "$MACOS_PACKAGE_PATH"
+
+      - name: Prepare release package (Linux)
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          ARCHIVE_NAME="nt-flash-${VERSION}-${{ matrix.name }}"
+          ARCHIVE_NAME="ntx-flash-${VERSION}-${{ matrix.name }}"
 
           mkdir -p "release/${ARCHIVE_NAME}"
           cp "${{ matrix.artifact }}" "release/${ARCHIVE_NAME}/"
           cp README.md "release/${ARCHIVE_NAME}/"
 
           cd release
-          if [ "${{ matrix.archive_ext }}" = "tar.gz" ]; then
-            tar -czvf "${ARCHIVE_NAME}.${{ matrix.archive_ext }}" "${ARCHIVE_NAME}"
-          else
-            zip -r "${ARCHIVE_NAME}.${{ matrix.archive_ext }}" "${ARCHIVE_NAME}"
-          fi
+          tar -czvf "${ARCHIVE_NAME}.${{ matrix.archive_ext }}" "${ARCHIVE_NAME}"
 
       - name: Prepare release package (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          ARCHIVE_NAME="nt-flash-${VERSION}-${{ matrix.name }}"
+          ARCHIVE_NAME="ntx-flash-${VERSION}-${{ matrix.name }}"
 
           mkdir -p "release/${ARCHIVE_NAME}"
           cp "${{ matrix.artifact }}" "release/${ARCHIVE_NAME}/"
@@ -139,8 +291,18 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nt-flash-${{ matrix.name }}
+          name: ntx-flash-${{ matrix.name }}
           path: release/*.${{ matrix.archive_ext }}
+
+      - name: Delete temporary macOS signing material
+        if: always() && matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/ntx-flash-signing.keychain-db" 2>/dev/null || true
+          rm -f \
+            "$RUNNER_TEMP/developer-id-certificates.p12" \
+            "$RUNNER_TEMP/AuthKey.p8" \
+            "$RUNNER_TEMP/notary-result.json"
 
   release:
     needs: build
@@ -157,9 +319,9 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-            echo "version=$LATEST_TAG" >> $GITHUB_OUTPUT
+            echo "version=$LATEST_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download all artifacts
@@ -174,17 +336,19 @@ jobs:
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
           cat > release_notes.md << 'EOF'
-          # NT Flash Tool
+          # NTX Flash Tool
 
-          Command-line tool for flashing disting NT firmware.
+          Command-line tool for flashing NTX-8CV firmware.
 
           ## Installation
 
-          1. Download the archive for your platform
-          2. Extract and run `nt-flash` (or `nt-flash.exe` on Windows)
-
           ### macOS
-          You may need to allow the app in System Preferences > Security & Privacy.
+          Download and open the `.pkg` installer. It installs the signed and
+          notarized universal executable at `/usr/local/bin/ntx-flash`.
+
+          ### Linux and Windows
+          Download the archive for your platform, extract it, and run
+          `ntx-flash` (or `ntx-flash.exe` on Windows).
 
           ### Linux
           You may need to set up udev rules for USB access:
@@ -199,16 +363,16 @@ jobs:
           ## Usage
 
           ```bash
-          # Put disting NT in bootloader mode first (Menu > Misc > Enter bootloader mode...)
+          # Put the NTX-8CV in bootloader mode first (Menu > Misc > Enter bootloader mode...)
 
           # Flash latest firmware
-          nt-flash --latest
+          ntx-flash --latest
 
           # Flash specific version
-          nt-flash --version 1.12.0
+          ntx-flash --version 1.12.0
 
           # Flash local file
-          nt-flash /path/to/firmware.zip
+          ntx-flash /path/to/firmware.zip
           ```
 
           EOF
@@ -229,6 +393,7 @@ jobs:
           tag_name: ${{ steps.get_version.outputs.version }}
           body_path: release_notes.md
           files: |
+            artifacts/**/*.pkg
             artifacts/**/*.zip
             artifacts/**/*.tar.gz
         env:
