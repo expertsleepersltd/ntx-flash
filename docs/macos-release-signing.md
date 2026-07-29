@@ -41,16 +41,23 @@ On a trusted Mac:
 2. Choose **Keychain Access > Certificate Assistant > Request a Certificate
    From a Certificate Authority**.
 3. Enter the Apple Developer account email and a recognizable common name such
-   as `Expert Sleepers ntx-flash releases`.
-4. Select **Saved to disk**, then save the certificate signing request (CSR).
-5. Open [Certificates, Identifiers & Profiles][apple-certificates] and press
+   as `Expert Sleepers ntx-flash application releases`.
+4. Select **Saved to disk**, then save the certificate signing request as
+   `ntx-flash-application.certSigningRequest`.
+5. Repeat the Keychain Access request process with a distinct common name such
+   as `Expert Sleepers ntx-flash installer releases`, saving it as
+   `ntx-flash-installer.certSigningRequest`. Apple requires a separate CSR and
+   private key for each Developer ID certificate.
+6. Open [Certificates, Identifiers & Profiles][apple-certificates] and press
    **+**.
-6. Under **Software**, choose **Developer ID Application**, upload the CSR,
-   generate the certificate, and download it.
-7. Repeat the process for **Developer ID Installer**. The same CSR may be used.
-8. Double-click both downloaded `.cer` files to add them to the login keychain.
-9. In Keychain Access, select **login > My Certificates** and confirm each
-   certificate expands to show its private key.
+7. Under **Software**, choose **Developer ID Application**, upload
+   `ntx-flash-application.certSigningRequest`, generate the certificate, and
+   download it.
+8. Create the **Developer ID Installer** certificate separately, uploading
+   `ntx-flash-installer.certSigningRequest`, then download it.
+9. Double-click both downloaded `.cer` files to add them to the login keychain.
+10. In Keychain Access, select **login > My Certificates** and confirm each
+    certificate expands to show its own private key.
 
 Confirm that both identities are usable:
 
