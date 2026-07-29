@@ -9,6 +9,23 @@ A unified command-line tool for flashing NTX-8CV firmware. Replaces the need for
 - Download and flash the latest firmware
 - Cross-platform: Linux, macOS, Windows
 
+## Installing a release
+
+Download the artifact for your platform from the repository's
+[Releases](https://github.com/expertsleepersltd/ntx-flash/releases) page.
+
+On macOS, open the signed and notarized `.pkg` installer. It installs the
+universal executable at `/usr/local/bin/ntx-flash` and prompts for administrator
+authorization. Confirm the installation with:
+
+```bash
+command -v ntx-flash
+ntx-flash --help
+```
+
+Linux and Windows releases remain downloadable archives that can be extracted
+and run directly.
+
 ## Building
 
 ### Prerequisites
@@ -29,7 +46,7 @@ sudo apt-get install libudev-dev
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/thorinside/ntx-flash.git
+git clone --recursive https://github.com/expertsleepersltd/ntx-flash.git
 cd ntx-flash
 
 # Build
@@ -40,6 +57,9 @@ mingw32-make
 ```
 
 The build produces a single binary: `ntx-flash` (or `ntx-flash.exe` on Windows).
+
+Maintainers configuring GitHub releases should follow the
+[macOS signing and notarization guide](docs/macos-release-signing.md).
 
 ## Usage
 
