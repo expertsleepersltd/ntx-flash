@@ -65,10 +65,7 @@ Maintainers configuring GitHub releases should follow the
 
 ### Put NTX-8CV in bootloader mode first
 
-Before flashing, enable bootloader mode on the NTX-8CV:
-```
-Menu > Misc > Enter bootloader mode...
-```
+Before flashing, enable bootloader mode on the NTX-8CV. This can be done from the configuration tool (`Settings` page, `Reboot in bootloader mode` button) or with the jumper on the module (refer to the user manual).
 
 ### Flash from local file
 
