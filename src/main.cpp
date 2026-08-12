@@ -310,7 +310,7 @@ bool parseManifest(const std::vector<uint8_t>& jsonData, std::string& firmwarePa
     if (appFirmware && appFirmware->valuestring) {
         firmwarePath = appFirmware->valuestring;
     } else {
-        firmwarePath = "bootable_images/disting_NT.bin";
+        firmwarePath = "bootable_images/NTX-8CV.bin";
     }
 
     cJSON_Delete(root);
@@ -975,7 +975,7 @@ int main(int argc, char* argv[]) {
     // Handle --list
     if (listVersions) {
         logInfo("Available firmware versions from Expert Sleepers:");
-        logInfo("  https://www.expert-sleepers.co.uk/distingNTfirmwareupdates.html");
+        logInfo("  https://www.expert-sleepers.co.uk/ntx8cvfirmwareupdates.html");
         logInfo("\nKnown versions: 1.12.0, 1.11.0, 1.10.0, 1.9.0, 1.8.0, 1.7.1, 1.7.0, 1.6.1, 1.6.0");
         return 0;
     }
@@ -990,9 +990,9 @@ int main(int argc, char* argv[]) {
 
     if (!version.empty()) {
         // Download specific version
-        tempZipPath = getTempDir() + "distingNT_" + version + ".zip";
+        tempZipPath = getTempDir() + "ntx8cv_" + version + ".zip";
         char downloadUrl[512];
-        snprintf(downloadUrl, sizeof(downloadUrl), "%sdistingNT_%s.zip",
+        snprintf(downloadUrl, sizeof(downloadUrl), "%sntx8cv_%s.zip",
                  FIRMWARE_BASE_URL, version.c_str());
         if (!downloadFile(downloadUrl, tempZipPath.c_str())) {
             return 1;
@@ -1001,7 +1001,7 @@ int main(int argc, char* argv[]) {
     }
     else if (!url.empty()) {
         // Download from URL
-        tempZipPath = getTempDir() + "distingNT_download.zip";
+        tempZipPath = getTempDir() + "ntx8cv_download.zip";
         if (!downloadFile(url.c_str(), tempZipPath.c_str())) {
             return 1;
         }
