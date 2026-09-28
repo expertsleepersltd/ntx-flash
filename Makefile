@@ -1,5 +1,5 @@
-# NT Flash Tool - Cross-platform Makefile
-# Unified firmware flashing tool for disting NT
+# NTX Flash Tool - Cross-platform Makefile
+# Unified firmware flashing tool for NTX-8CV
 
 # Detect platform
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)

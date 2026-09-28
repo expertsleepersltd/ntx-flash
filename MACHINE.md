@@ -1,12 +1,12 @@
-# NT Flash Tool - Machine-Readable Output Format
+# NTX Flash Tool - Machine-Readable Output Format
 
-This document describes the machine-readable output format used when running `nt-flash` with the `--machine` flag. This format is designed for integration with other tools like NT Helper.
+This document describes the machine-readable output format used when running `ntx-flash` with the `--machine` flag. This format is designed for integration with other tools.
 
 ## Usage
 
 ```bash
-nt-flash --machine <firmware.zip>
-nt-flash --machine --version 1.12.0
+ntx-flash --machine <firmware.zip>
+ntx-flash --machine --version 1.1.0
 ```
 
 ## Output Format
@@ -43,7 +43,7 @@ Indicates a fatal error. The process will exit with a non-zero code.
 
 | Stage | Percent | Description |
 |-------|---------|-------------|
-| `DOWNLOAD` | 0 | Downloading firmware from URL |
+| `DOWNLOAD` | 0 | Downloading the firmware index or firmware package |
 | `LOAD` | 0 | Loading firmware package from ZIP |
 | `START` | 0 | Flash process starting |
 | `SDP_CONNECT` | 5 | Connecting to SDP bootloader (ROM) |
@@ -65,7 +65,7 @@ Indicates a fatal error. The process will exit with a non-zero code.
 Successful flash:
 ```
 STATUS:LOAD:0:Loading firmware package
-STATUS:START:0:Starting disting NT flash
+STATUS:START:0:Starting NTX-8CV flash
 STATUS:SDP_CONNECT:5:Connecting to SDP bootloader
 STATUS:SDP_UPLOAD:15:Uploading flashloader to RAM
 PROGRESS:SDP_UPLOAD:25:Segment 1/4
@@ -90,7 +90,7 @@ STATUS:COMPLETE:100:Flash complete
 Error case:
 ```
 STATUS:LOAD:0:Loading firmware package
-STATUS:START:0:Starting disting NT flash
+STATUS:START:0:Starting NTX-8CV flash
 STATUS:SDP_CONNECT:5:Connecting to SDP bootloader
 ERROR:Device not found in SDP mode or flashloader mode
 ```
