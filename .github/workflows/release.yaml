@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       use_latest_tag:
-        description: 'Use latest tag for release'
+        description: 'Build the latest tag and publish its release; disable for a build-only validation of the selected ref'
         required: true
         default: 'true'
         type: boolean
@@ -46,7 +46,7 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.use_latest_tag }}" = "true" ]; then
             LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
             if [ -z "$LATEST_TAG" ]; then
               echo "Error: No tags found"
@@ -54,6 +54,8 @@ jobs:
             fi
             echo "version=$LATEST_TAG" >> "$GITHUB_OUTPUT"
             git checkout "$LATEST_TAG"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=validation-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           else
             echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
@@ -73,11 +75,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: UCRT64
           update: true
           install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-make
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
             zip
 
       - name: Build (macOS - Universal Binary)
@@ -89,7 +91,7 @@ jobs:
           file ntx-flash
 
       - name: Import macOS Developer ID certificates
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && (github.event_name != 'workflow_dispatch' || inputs.use_latest_tag)
         shell: bash
         env:
           MACOS_CERTIFICATES_P12_BASE64: ${{ secrets.MACOS_CERTIFICATES_P12_BASE64 }}
@@ -150,7 +152,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Sign macOS executable
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && (github.event_name != 'workflow_dispatch' || inputs.use_latest_tag)
         shell: bash
         run: |
           set -euo pipefail
@@ -177,8 +179,24 @@ jobs:
           mingw32-make clean || true
           mingw32-make
 
+      - name: Smoke test Windows binary
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          file ntx-flash.exe
+          ./ntx-flash.exe --version-info
+          ./ntx-flash.exe --help
+          ./ntx-flash.exe --dry-run --latest
+
+          IMPORTS=$(objdump -p ntx-flash.exe | awk '/DLL Name:/ { print $3 }')
+          printf 'Imported DLLs:\n%s\n' "$IMPORTS"
+          if printf '%s\n' "$IMPORTS" | grep -Eiq 'libgcc|libstdc\+\+|libwinpthread'; then
+            echo "Error: executable depends on a MinGW runtime DLL"
+            exit 1
+          fi
+
       - name: Build signed macOS installer package
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && (github.event_name != 'workflow_dispatch' || inputs.use_latest_tag)
         shell: bash
         run: |
           set -euo pipefail
@@ -206,7 +224,7 @@ jobs:
           echo "MACOS_PACKAGE_PATH=$PACKAGE_PATH" >> "$GITHUB_ENV"
 
       - name: Notarize and staple macOS installer package
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && (github.event_name != 'workflow_dispatch' || inputs.use_latest_tag)
         shell: bash
         env:
           APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
@@ -289,13 +307,14 @@ jobs:
           zip -r "${ARCHIVE_NAME}.${{ matrix.archive_ext }}" "${ARCHIVE_NAME}"
 
       - name: Upload artifact
+        if: matrix.os != 'macos-latest' || github.event_name != 'workflow_dispatch' || inputs.use_latest_tag
         uses: actions/upload-artifact@v4
         with:
           name: ntx-flash-${{ matrix.name }}
           path: release/*.${{ matrix.archive_ext }}
 
       - name: Delete temporary macOS signing material
-        if: always() && matrix.os == 'macos-latest'
+        if: always() && matrix.os == 'macos-latest' && (github.event_name != 'workflow_dispatch' || inputs.use_latest_tag)
         shell: bash
         run: |
           security delete-keychain "$RUNNER_TEMP/ntx-flash-signing.keychain-db" 2>/dev/null || true
@@ -305,6 +324,7 @@ jobs:
             "$RUNNER_TEMP/notary-result.json"
 
   release:
+    if: github.event_name != 'workflow_dispatch' || inputs.use_latest_tag
     needs: build
     runs-on: ubuntu-latest
 
