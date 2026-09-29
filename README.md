@@ -70,13 +70,13 @@ Before flashing, enable bootloader mode on the NTX-8CV. This can be done from th
 ### Flash from local file
 
 ```bash
-ntx-flash /path/to/distingNT_1.12.0.zip
+ntx-flash /path/to/ntx8cv_1.1.0.zip
 ```
 
 ### Download and flash specific version
 
 ```bash
-ntx-flash --version 1.12.0
+ntx-flash --version 1.1.0
 ```
 
 ### Download and flash latest
@@ -117,7 +117,7 @@ ntx8cv_X.Y.Z.zip
 └── ...
 ```
 
-Official firmware packages from [Expert Sleepers](https://www.expert-sleepers.co.uk/distingNTfirmwareupdates.html) are fully supported.
+Official [NTX-8CV firmware packages from Expert Sleepers](https://www.expert-sleepers.co.uk/ntx8cvfirmwareupdates.html) are fully supported.
 
 ## How It Works
 
@@ -131,7 +131,7 @@ The flash process involves two stages:
 ### Device not found
 
 - Ensure NTX-8CV is in bootloader mode
-- On Linux, you may need udev rules. Create `/etc/udev/rules.d/99-disting.rules`:
+- On Linux, you may need udev rules. Create `/etc/udev/rules.d/99-ntx-8cv.rules`:
   ```
   SUBSYSTEM=="usb", ATTR{idVendor}=="1fc9", ATTR{idProduct}=="0145", MODE="0666"
   SUBSYSTEM=="usb", ATTR{idVendor}=="15a2", ATTR{idProduct}=="0073", MODE="0666"
