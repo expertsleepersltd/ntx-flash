@@ -39,6 +39,14 @@ ERROR:<MESSAGE>
 
 Indicates a fatal error. The process will exit with a non-zero code.
 
+### PORT Messages
+
+```
+PORT:<NAME>
+```
+
+Emitted by `--list-midi-ports` in machine mode, one line per MIDI output port.
+
 ## Stage Identifiers
 
 | Stage | Percent | Description |
@@ -46,6 +54,7 @@ Indicates a fatal error. The process will exit with a non-zero code.
 | `DOWNLOAD` | 0 | Downloading the firmware index or firmware package |
 | `LOAD` | 0 | Loading firmware package from ZIP |
 | `START` | 0 | Flash process starting |
+| `BOOTLOADER` | 2 | Requesting bootloader mode via MIDI SysEx |
 | `SDP_CONNECT` | 5 | Connecting to SDP bootloader (ROM) |
 | `BL_CHECK` | 10 | Checking if already in flashloader mode |
 | `BL_FOUND` | 15 | Device already in flashloader mode |
@@ -60,12 +69,22 @@ Indicates a fatal error. The process will exit with a non-zero code.
 | `RESET` | 95 | Resetting device |
 | `COMPLETE` | 100 | Flash complete |
 
+On Windows, after a flash, `COMPLETE:100` means the firmware write
+finished, **not** that the application MIDI endpoint has returned. Its message
+distinguishes observed flashloader removal from an unconfirmed reset. Start
+MIDI discovery on either completion; do not reflash merely because discovery
+takes time. An explicit reset rejection or failed write of the reset command
+without observed removal instead emits `ERROR:Firmware written, ...`.
+
 ## Example Output
 
-Successful flash:
+Successful flash (module was running normally, so bootloader mode was requested first):
 ```
 STATUS:LOAD:0:Loading firmware package
 STATUS:START:0:Starting NTX-8CV flash
+STATUS:SDP_CONNECT:5:Connecting to SDP bootloader
+STATUS:BL_CHECK:10:Checking for flashloader mode
+STATUS:BOOTLOADER:2:Requesting bootloader mode via MIDI SysEx
 STATUS:SDP_CONNECT:5:Connecting to SDP bootloader
 STATUS:SDP_UPLOAD:15:Uploading flashloader to RAM
 PROGRESS:SDP_UPLOAD:25:Segment 1/4
