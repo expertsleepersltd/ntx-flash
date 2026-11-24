@@ -25,7 +25,8 @@ ntx-flash --help
 ```
 
 Linux and Windows releases remain downloadable archives that can be extracted
-and run directly.
+and run directly. The Linux build links `libasound2` (ALSA) for MIDI output, which
+is present on normal desktop installs; minimal systems may need to install it.
 
 ## Building
 
@@ -80,6 +81,9 @@ ntx-flash --list-midi-ports    # show MIDI ports, e.g. "NTX-8CV"
 If that is not possible (no MIDI port, unusual configuration), use the
 configuration tool (`Settings` page, `Reboot in bootloader mode` button) or the
 bootloader jumper on the module (refer to the user manual).
+
+This needs firmware that implements the reboot request (verified on 1.1.0). With
+older firmware, use the configuration tool or the jumper.
 
 ### Flash from local file
 
