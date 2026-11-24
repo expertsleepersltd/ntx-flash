@@ -7,6 +7,7 @@ A unified command-line tool for flashing NTX-8CV firmware. Replaces the need for
 - Flash from local ZIP firmware packages
 - Download and flash specific firmware versions
 - Download and flash the latest firmware
+- Puts the module into bootloader mode for you (MIDI SysEx), on macOS, Linux and Windows
 - Cross-platform: Linux, macOS, Windows
 
 ## Installing a release
@@ -32,8 +33,9 @@ and run directly.
 
 **Linux:**
 ```bash
-sudo apt-get install libudev-dev
+sudo apt-get install libudev-dev libasound2-dev
 ```
+(Fedora: `libudev-devel alsa-lib-devel`, Arch: `systemd-libs alsa-lib`)
 
 **macOS:**
 - Xcode Command Line Tools: `xcode-select --install`
@@ -63,9 +65,21 @@ Maintainers configuring GitHub releases should follow the
 
 ## Usage
 
-### Put NTX-8CV in bootloader mode first
+### Put NTX-8CV in bootloader mode
 
-Before flashing, enable bootloader mode on the NTX-8CV. This can be done from the configuration tool (`Settings` page, `Reboot in bootloader mode` button) or with the jumper on the module (refer to the user manual).
+The tool does this for you. If the module is running normally, it is asked over
+MIDI SysEx to reboot into bootloader mode, and the tool waits for it to
+re-enumerate before continuing. The module must be connected over USB and powered,
+and its MIDI port must be visible to the host.
+
+```bash
+ntx-flash --enter-bootloader   # enter bootloader mode and exit
+ntx-flash --list-midi-ports    # show MIDI ports, e.g. "NTX-8CV"
+```
+
+If that is not possible (no MIDI port, unusual configuration), use the
+configuration tool (`Settings` page, `Reboot in bootloader mode` button) or the
+bootloader jumper on the module (refer to the user manual).
 
 ### Flash from local file
 
@@ -103,6 +117,12 @@ ntx-flash --list
 |--------|-------------|
 | `-v, --verbose` | Show detailed output |
 | `-n, --dry-run` | Validate without flashing |
+| `-m, --machine` | Machine-readable output (see [MACHINE.md](MACHINE.md)) |
+| `--enter-bootloader` | Put the module in bootloader mode and exit |
+| `--list-midi-ports` | List MIDI output ports |
+| `--midi-port <name>` | MIDI port to send the bootloader request to (default `NTX-8CV`) |
+| `--sysex-id <0-127>` | SysEx device ID of the module (default `0`) |
+| `--no-auto-bootloader` | Never request bootloader mode automatically |
 | `-h, --help` | Show help |
 
 ## Firmware Package Format
@@ -126,11 +146,28 @@ The flash process involves two stages:
 1. **SDP Mode** (USB 0x1FC9:0x0145): Upload flashloader to RAM and execute it
 2. **Bootloader Mode** (USB 0x15A2:0x0073): Configure flash, erase, write firmware, reset
 
+Before stage 1, if the module is not already in a bootloader state, the tool
+sends this SysEx message to the module's MIDI port:
+
+```
+F0 00 21 27 6A <SysEx ID> 7F 7F F7
+```
+
+`00 21 27` is the Expert Sleepers manufacturer ID, `6A` addresses the NTX-8CV,
+and `7F 7F` means "reboot into bootloader mode". The same message is sent by the
+`Reboot in bootloader mode` button in the web configuration tool. MIDI output is
+implemented without extra libraries: CoreMIDI on macOS, the ALSA sequencer on
+Linux, and WinMM on Windows.
+
 ## Troubleshooting
 
 ### Device not found
 
-- Ensure NTX-8CV is in bootloader mode
+- Check the module is powered and connected over USB
+- Run `ntx-flash --list-midi-ports` - the module should appear as `NTX-8CV` when it
+  is running normally. If it does not, the tool cannot request bootloader mode;
+  use the configuration tool or the jumper instead
+- If the module uses a non-default SysEx device ID, pass `--sysex-id <n>`
 - On Linux, you may need udev rules. Create `/etc/udev/rules.d/99-ntx-8cv.rules`:
   ```
   SUBSYSTEM=="usb", ATTR{idVendor}=="1fc9", ATTR{idProduct}=="0145", MODE="0666"

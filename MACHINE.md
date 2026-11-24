@@ -39,6 +39,14 @@ ERROR:<MESSAGE>
 
 Indicates a fatal error. The process will exit with a non-zero code.
 
+### PORT Messages
+
+```
+PORT:<NAME>
+```
+
+Emitted by `--list-midi-ports` in machine mode, one line per MIDI output port.
+
 ## Stage Identifiers
 
 | Stage | Percent | Description |
@@ -46,6 +54,7 @@ Indicates a fatal error. The process will exit with a non-zero code.
 | `DOWNLOAD` | 0 | Downloading the firmware index or firmware package |
 | `LOAD` | 0 | Loading firmware package from ZIP |
 | `START` | 0 | Flash process starting |
+| `BOOTLOADER` | 2 | Requesting bootloader mode via MIDI SysEx |
 | `SDP_CONNECT` | 5 | Connecting to SDP bootloader (ROM) |
 | `BL_CHECK` | 10 | Checking if already in flashloader mode |
 | `BL_FOUND` | 15 | Device already in flashloader mode |
@@ -62,10 +71,13 @@ Indicates a fatal error. The process will exit with a non-zero code.
 
 ## Example Output
 
-Successful flash:
+Successful flash (module was running normally, so bootloader mode was requested first):
 ```
 STATUS:LOAD:0:Loading firmware package
 STATUS:START:0:Starting NTX-8CV flash
+STATUS:SDP_CONNECT:5:Connecting to SDP bootloader
+STATUS:BL_CHECK:10:Checking for flashloader mode
+STATUS:BOOTLOADER:2:Requesting bootloader mode via MIDI SysEx
 STATUS:SDP_CONNECT:5:Connecting to SDP bootloader
 STATUS:SDP_UPLOAD:15:Uploading flashloader to RAM
 PROGRESS:SDP_UPLOAD:25:Segment 1/4
